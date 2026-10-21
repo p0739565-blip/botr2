@@ -1,7 +1,7 @@
+import asyncio
 import base64
 import re
 from pathlib import Path
-
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -15,6 +15,7 @@ from app.config import ADMIN_SESSION_SECRET, CHANNEL_USERNAME
 from app.db import async_session, init_models
 from app.decoy import render_decoy_page
 from app.models import Subscription
+from app.services.platega_reconciliation import reconciliation_loop
 from app.vless_links import get_dead_links, render_links
 from app.webhooks.platega import router as platega_webhook_router
 
@@ -97,6 +98,11 @@ def build_subscription_response(
 @app.on_event("startup")
 async def on_startup() -> None:
     await init_models()
+
+    # Фоновая сверка зависших Platega-платежей — см. докстринг модуля.
+    # Запускается как фоновая asyncio-задача внутри uvicorn-процесса
+    # (не блокирует старт самого API), крутится, пока жив процесс.
+    asyncio.create_task(reconciliation_loop())
 
 
 @app.get("/")
